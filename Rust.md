@@ -1146,3 +1146,134 @@ for word in text.split_whitespace() {
 ### Error Handling
 
 Rust distinguishes between two types of errors: recoverable and unrecoverable. Recoverable errors are handled with the Result<T,E> type and unrecoverable errors are covered calling the panic! macro.
+
+Using *panic!* prints an error message, unwinds the stack and quits the program. Unwinding the stack can be avoided by editing the TOML file.
+
+```rust
+[profile.release]
+panic = 'abort'
+```
+
+```rust
+fn main() {
+    panic!("crash the program!");
+}
+```
+
+You can set the RUST_BACKTRACE environment variable to see where the panic originiated.
+
+```rust
+fn main() {
+    let v = vec![1, 2, 3];
+
+    v[99]; // causes panic
+}
+
+//
+$Env:RUST_BACKTRACE=1
+cargo run
+```
+
+Less serious errors create a Result<T, E>.
+
+```rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("log.txt"); // returns a Result<T, E>
+    
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => panic!("Can not open file: {:?}", error),
+    }
+}
+```
+
+In order to have better control over the errors a match can be used on the error type.
+
+```rust
+let f = match f {
+    Ok(file) => file,
+    Err(error) => match error.kind() {
+        ErrorKind::NotFound => match File::create("log.txt") {
+            Ok(fc) => fc,
+            Err(e) => panic!("Problem creating file: {:?}", e),
+        },
+        other_error => {
+            panic!("Problem opening file: {:?}", other_error)
+        }
+    }
+}
+```
+The *unwrap()* method of the Result<T, E> type unwraps the value or it calls the panic! macro.
+
+```rust
+let f = File::open("log.txt").unwrap(); // f = file handle or if error panic
+```
+
+*expect()* is a similar method which let's us specify an error message.
+
+```rust
+let f = File::open("log.txt").expect("Can not open file!");
+```
+
+It is often useful to propagate the error back to the caller of a method instead of handling it directly.
+
+```rust
+fn read_log() -> Result<String, io::Error> {
+    let f = File::open("log.txt");
+    
+    let mut f = match f {
+        Ok(file) => file,
+        Err(e) => return Err(e),
+    };
+    
+    let mut s = String::new();
+    
+    match f.read_to_string(&mut s) {
+        Ok(_) => Ok(s),
+        Err(e) => Err(e),
+    }
+}
+```
+
+Propagating errors can be shortened using the *?* operator.
+
+```rust
+fn read_log() -> Result<String, io::Error> {
+    let mut f = File::open("log.txt")?;
+    let mut s = String::new();
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+If the value of the Result is an Ok the value inside the Ok will get returned from the expression. If the value is an Err, the Err will be returned from the whole function as if we had used the return keyword.
+
+Even shorter:
+
+```rust
+fn read_log() -> Result<String, io::Error> {
+    let mut s = String::new();
+    File::open("log.txt")?.read_to_string(&mut s)?;
+    Ok(s)
+}
+
+fn read_log2() -> Result<String, io::Error> {
+    fs::read_to_string("log.txt")
+}
+```
+
+The *?* operator can only be used in functions that return a Result<T, E>, Option<T>.
+
+
+
+### Generics
+
