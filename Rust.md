@@ -955,3 +955,194 @@ use std::collections::* // all public items under this path
 mod other_file; // loads other_file.rs
 ```
 
+
+
+### Vectors
+
+Vectors are like in C++ dynamic arrays, which can hold values of the same data type.
+
+Creating a new vector:
+
+```rust
+let vec: Vec<i32> = Vec::new(); // explicit data type because the vector is empty
+let vec = vec![1,2,3]; // shorter creation with macro
+```
+
+A new element can be added to the vector with the *push* method:
+
+```rust
+let mut v = Vec::new();
+v.push(3);
+```
+
+The data can be accessed with indexing syntax or the *get* method:
+
+```rust
+let third_element = &v[2];
+let second_element = v.get(1); // get returns an Option<T>
+
+match v.get(5) {
+    Some(t) => println!("{}", t),
+    None => (),
+}
+```
+
+A for loop can be used to conveniently iterate over the values in a vector.
+
+```rust
+let v = vec![1,2,3,4,5];
+
+for i in &v { // iterate through reference because you do not want ownership
+    println!("{}", i);
+}
+
+for i in &mut v {
+    *i += 1; // dereference before applying action
+}
+```
+
+Because *enums* can be used similar to a *union*, meaning it can have several data types, vectors also can have multiple data types when using a vector of such an enum.
+
+```rust
+enum Cell {
+    Int(i32),
+    Float(f64),
+    Text(String),
+}
+
+let row = vec![Cell::Int(4), Cell::Float(5.5), Cell::Text(String::from("test"))];
+```
+
+
+
+### String
+
+String operations:
+
+```rust
+let mut s = String::new();
+let data = "initial"; // string literal, data is &str
+let s = data.to_string(); 
+let s = "initial".to_string();
+let s = String::from("initial"); // all 3 result in the same
+```
+
+Strings are UTF-8 encoded, so a lot of different alphabets and things like emojis are possible to store in them.
+
+A string can be appended to by using *push_str()* for string slices or *push()* for a single character.
+
+```rust
+let mut s1 = String::from("foo");
+let s2 = "bar";
+s1.push_str(s2);
+s1.push('!');
+```
+
+Strings can be added together either by using the *+* operator or using the *format!* macro.
+
+```rust
+let s1 = String::from("hello");
+let s2 = String::from(", world!");
+let s3 = s1 + &s2; // s1 is moved and can no longer be used
+
+let s = format!("{}-{}-{}", s1, s2, s3);
+```
+
+Strings can not be accessed via indexing, because different alphabets require different byte lengths for encoding in memory.
+
+```rust
+let hello = "Здравствуйте";
+let answer = &hello[0]; // does not work!
+```
+
+String slices can be used for this operation.
+
+```rust
+let hello = "Здравствуйте";
+
+let s = &hello[0..3]; // s will be Зд because each character takes two bytes in memory
+```
+
+Using wrong indices here will cause Rust to panic at runtime.
+
+The *chars()* method can be used to iterate over the characters in a string.
+
+The *bytes()* method can be used to iterate over the actual bytes in a string.
+
+```rust
+for c in "hello".chars() {
+    println!("{}", c);
+}
+
+for b in "hello".bytes() {
+    println!("{}", b);
+}
+```
+
+
+
+### Hash maps
+
+A hash map stores key value pairs. In contrast to a vector the index (key) could be of any type.
+
+Creating a hash map:
+
+```rust
+use std::collection::HashMap;
+
+let mut scores = HashMap::new();
+scores.insert(String::from("blue"), 10);
+scores.insert(String::from("yellow"), 50);
+```
+
+All keys must be of the same type and so must be all of the values. Owned values like string will have their ownership moved to the hash map, while types that implement the Copy trait will be copied.
+
+Data can be accessed via the *get()* method. It returns an Option<&T>.
+
+```rust
+...
+let team_name = String::from("blue");
+let score = scores.get(&team_name);
+```
+
+Iterating over a hash map:
+
+```rust
+for (key, value) in &scores {
+    println!("{}: {}", key, value);
+}
+```
+
+Inserting the same key twice will overwrite the old one.
+
+You can check for the existence of a key before inserting and thus possibly overwriting an old value. 
+
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+scores.insert(String::from("blue"),10);
+
+scores.entry(String::from("yellow")).or_insert(50); // key does not exist -> okay
+scores.entry(String::from("blue")).or_insert(50); // blue already exists -> nothing happens
+```
+
+Updating a hash map value based on the old value:
+
+```rust
+use std::collections::HashMap;
+
+let text = "hello world hello hello";
+let mut map = HashMap::new();
+
+for word in text.split_whitespace() {
+    let count = map.entry(word).or_insert(0); // return mutable reference or create new key value pair with value 0
+    *count += 1;
+}
+```
+
+
+
+### Error Handling
+
+Rust distinguishes between two types of errors: recoverable and unrecoverable. Recoverable errors are handled with the Result<T,E> type and unrecoverable errors are covered calling the panic! macro.
