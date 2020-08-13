@@ -1804,3 +1804,136 @@ This is the longest function with an additional parameter *ann*, which is of the
 
 ### Tests
 
+Functions are recognized as test functions, if they are annotated with the *test* attribute.
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*; // bring code from outer scope into this scope
+    
+    #[test]
+    fn it_works() {
+        assert_eq!(2+2, 4);
+    }
+    
+    #[test]
+    fn fail() {
+        panic!("fail");
+    }
+    
+    #[test]
+    fn smaller_cannot_hold_larger() {
+        let larger = Rectangle {
+            width: 8,
+            height: 7,
+        };
+        let smaller = Rectangle {
+            width: 4,
+            height: 1,
+        };
+        
+        assert!(!smaller.can_hold(&larger));
+    }
+}
+```
+
+cargo test runs all tests in the project.
+
+The assert!(expr) macro checks whether the expression resolves to a true value, otherwise the test fails.
+
+The assert_eq!(expr, expr) checks whether the two passed expressions are equal. assert_ne!(expr, expr) is the counterpart to it.
+
+The assert! macros can also take additional parameters that will print a custom formatted error message.
+
+```rust
+#[test]
+fn greeting() {
+    let result = greeting("Carol");
+    assert!(
+    	result.contains("Carol")),
+    	"Greeting did not contain name, value was {}",
+    	result
+    );
+}
+```
+
+An added should_panic annotation means the test will fail if it does not panic.
+
+```rust
+#[test]
+#[should_panic]
+fn greater() {
+    Guess::new(200);
+}
+```
+
+To this annotation an error message can be added.
+
+```rust
+#[should_panic(expected = "Error message 01")]
+```
+
+Instead of working with assert! macros you can also write tests that return a Result<T, E>. The function then return an Ok(()) to pass and and Err(String::from("err msg")) to fail. The should_panic notation is not available for this kind of test.
+
+```rust
+#[test]
+fn it_works() -> Result<(), String> {
+    if 2+2 == 4 {
+        Ok(())
+    }else{
+        Err(String::from("err_str"))
+    }
+}
+```
+
+
+
+### Control tests
+
+```bash
+cargo test // runs all tests in parallel
+cargo test -- --test-threads=1 // run tests on one thread sequentially
+cargo test -- --show-output // print output of tests
+cargo test it_works // run a single test by function name
+cargo test add // all tests with add in their function name will be run
+cargo test -- --ignored // run only the ignored tests
+```
+
+```rust
+#[test]
+#[ignore] // mark an expensive test as ignored
+fn exp_test() {
+    ...
+}
+```
+
+
+
+### Test organization
+
+- unit tests are small and focused, testing one module in isolation  at a time and can test private interfaces
+- integration tests are external from the program and use your code like another external code would using only the public interfaces.
+
+Unit test are put in the source files of the code they are testing. The convention is a module named *tests* in each file to contain the test functions and annotate the module with *cfg(test)*. These functions are only compiled when running *cargo test*. Private, not as *pub* declared, functions can be tested within unit tests.
+
+For integration tests a *test* directory is necessary at the top level of the project directory. Then create a new file *integration_test.rs*.
+
+```rust
+use adder; // your module to be tested, bring crate into scope
+
+#[test]
+fn it_adds_two() {
+    assert_eq!(4, adder::add_two(2));
+}
+```
+
+```bash
+cargo test --test integration_test // run all tests in this file
+```
+
+Integration tests can only be used for library crates and not for binary crates.
+
+
+
+### grep program
+
