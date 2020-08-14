@@ -1937,3 +1937,177 @@ Integration tests can only be used for library crates and not for binary crates.
 
 ### grep program
 
+grep searches a specified file for a specified string. It takes a filename and a string as parameters from the command line.
+
+To work with arguments from the command line the std::env crate is required. We put all arguments in a vector of strings and then put them in separate variables.
+
+```rust
+use std::env;
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    
+    let query = &args[1]; // start with index 1 because in index 0 is always the program name
+    let filename = &args[2];
+    
+    println!("Searching for {} in {}.", query, filename);
+}
+```
+
+In the next step we read the content of the file, which was previously specified. The std::fs create is required to do file operations.
+
+```rust
+use std::env;
+use std::fs;
+
+fn main() {
+    let args: Vec<String> = env::args()::collect();
+    
+    let content = fs::read_to_string(&args[2])
+    	.expect("Can not read the file!");
+    
+    println!("File content:\n{}", content);
+}
+```
+
+It is a good idea to refactor this program and put the main logic in *lib.rs* and the part that just uses and calls the main logic in *main.rs*.
+
+```rust
+fn main(){
+    let args: Vec<String> = env::args()::collect();
+    
+    let (query, filename) = parse_arguments(&args);
+}
+
+fn parse_arguments(args: &[String]) -> (&str, &str) {
+    (&args[1], &args[2])
+}
+```
+
+It is preferable to use a struct to store the configuration instead of two random variables.
+
+```rust
+...
+use std::process;
+
+fn main() {
+    ...
+    let config = Config::new(&args).unwrap_or_else(|err| {
+       println!("Problem parsing arguments: {}", err);
+        process::exit(1);
+    });
+    ...
+}
+
+struct Config{
+    query: String,
+    filename: String,
+}
+
+impl Config{
+    fn new(args: &[String]) -> Result<Config, &'static str> {
+        if args.len() < 3 {
+            return Err("not enough arguments");
+        }
+        
+        let query = args[1].clone();
+        let filename = args[2].clone();
+        Ok(Config{query, filename})
+    }
+}
+```
+
+This way the constructor of the Config struct even returns a Result enum, which can be handled in the main function. In the main handle *unwrap_or_else()* is used to either unwrap the result if it was successful or call the appended lambda and eventually close the program.
+
+Next we move some functionality to a *run* function.
+
+```rust
+use std::error::Error;
+
+fn main(){
+    ...
+    if let Err(e) = run(config) { // could also use unwrap_or_else() here, but we do not care about the success value because it is (), so we only handle error case
+        println!("Application error: {}", e);
+        process::exit(1);
+    }
+}
+
+fn run(config: Config) -> Result<(), Box<dyn Error>> { //take ownership because it is not needed anymore in main, on error will return a type that implements the Error trait
+    let contents = fs::read_to_string(config.filename)?; //propagate an error with ?
+    ...
+    Ok(())
+}
+```
+
+Now move the *run* function, the use statements, the *Config* struct including implementation to the *lib.rs* file.
+
+```rust
+//lib.rs
+
+use std::error::Error;
+use std::fs;
+
+pub struct Config {
+    pub query: String,
+    pub filename: String,
+}
+
+impl Config {
+    pub fn new(args: &[String]) -> Result<Config, &'static str> {
+        ...
+    }
+}
+
+pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    ...
+}
+```
+
+```rust
+//main.rs
+
+use std::env;
+use std::process;
+
+use minigrep::Config;
+
+fn main() {
+    ...
+    if let Err(e) = minigrep::run(config) {
+        ...
+    }
+}
+```
+
+The search function implements the core utility of the tool.
+
+```rust
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.contains(query){
+            results.push(line);
+        }
+    }
+
+    results
+}
+
+pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let query = query.to_lowercase();
+    let mut results = Vec::new();
+
+    for line in contents.lines(){
+        if line.to_lowercase().contains(&query){
+            results.push(line);
+        }
+    }
+
+    results
+}
+```
+
+The lifetime annotation is required because rust does not know our return value references the *contents* input parameter. We make that clear by giving both the 'a.
+
+Print to the error stream with the *eprintln()* macro.
