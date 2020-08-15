@@ -2111,3 +2111,257 @@ pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a st
 The lifetime annotation is required because rust does not know our return value references the *contents* input parameter. We make that clear by giving both the 'a.
 
 Print to the error stream with the *eprintln()* macro.
+
+
+
+### Closures
+
+Closures are like lambdas anonymous functions, that can capture values from the scope in which they are defined.
+
+```rust
+let closure = |num| { // num is a paramter of the closure, definitio in {}
+    println!("calculation...");
+    thread::sleep(Duration::from_secs(2));
+    num
+};
+
+// with annotations, which are not necessary
+let closure = |num: u32| -> u32 {
+    ...
+    num
+};
+
+println!("Result: {}", closure(5));
+
+fn addone_v1 = (x: u32) -> u32 {x + 1}
+let addone_v2 = |x: u32| -> u32 { x + 1 }
+let addone_v3 = |x| { x + 1 }
+let addone_v4 = |x| x + 1; // works, because there is only on expression
+```
+
+We can also create a struct that will hold the closure and the resulting value. For this to work the exact type of the closure needs to be specified.
+
+```rust
+struct Cacher<T>
+where
+	T: Fn(u32) -> u32, // define function type with trait bounds, closures are Fn, FnMut or FnOnce
+{
+    calculation: T,
+    value: Option<T>,
+}
+
+impl<T> Cacher<T>
+where
+	T: Fn(u32)->u32
+{
+    fn new(calculation: T) -> Cacher<T> {
+        Cacher{
+            calculation,
+            value: None,
+        }
+    }
+    
+    fn value(&mut self, arg: u32) -> u32 { // either calculate or return the cached value
+        match self.value{
+            Some(v) => v,
+            None => {
+                let v = (self.calculation)(arg);
+                self.value = Some(v);
+                v
+            }
+        }
+    }
+}
+```
+
+```rust
+let mut expensive_result = Cacher::new(|num| {
+   ...
+   num
+});
+
+println!("Result: ", expensive_result.value(32)); // calculates
+println!("Result: ", expensive_result.value(32)); // cached value
+```
+
+Example for capturing values.
+
+```rust
+fn main() {
+    let x = 4;
+    
+    let equal_to_x = |z| z == x; //x is captured, because it is in the same scope
+    
+    let y = 4;
+    
+    assert!(equal_to_x(y));
+}
+```
+
+There are three capture modes:
+
+- **FnOnce**:  consumes the variables it captures and takes ownership. Because that only works once, this closure can only be called once.
+- **FnMut**: can change environment because it does a captured borrow.
+- **Fn**: borrows values immutably.
+
+Rust infers what type of capture mode is used by the way the values are used in the closure.
+
+The *move* keyword can be used to force the closure to take ownership.
+
+```rust
+let x = vec![1,2,3];
+let cl = move |val| val == x;
+
+// can not use x here anymore!
+let y = vec![1,2,3];
+assert!(cl(y));
+```
+
+
+
+### Iterators
+
+Iterators allow you to perform some task on a sequence of items. An iterator knows how to iterate through a container object like a vector.
+
+```rust
+let v1 = vec![1, 2, 3];
+let v1_iter = v1.iter();
+
+for val in v1_iter {
+    println!("{}", val);
+}
+```
+
+All iterators implement the Iterator trait, which requires the implementation of a *next()* method.
+
+```rust
+let mut v1_iter = v1.iter();
+let value = v1_iter.next();
+```
+
+Methods that call next are call consuming adaptors, because calling them uses up the iterator.
+
+```rust
+let total: i32 = v1_iter.sum();
+```
+
+Other methods allow you to change iterators into different kinds of iterators. These can be chained together.
+
+```rust
+let v1: Vec<i32> = vec![1,2,3];
+let v2: Vec<_> = v1.iter().map(|x| x + 1).collect(); // increase every value in v1 by one
+```
+
+*collect()* is needed to collect the values from *map()*, because *map()* is lazy and does not do anything by itself.
+
+```rust
+#[derive(PartialEq, Debug)]
+struct Shoe {
+    size: u32,
+    style: String,
+}
+
+fn shoes_in_my_size(shoes: Vec<Shoe>, shoe_size: u32) -> Vec<Shoe> {
+    shoes.into_iter().filter(|s| s.size == shoe_size).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn filters_by_size() {
+        let shoes = vec![
+            Shoe {
+                size: 10,
+                style: String::from("sneaker"),
+            },
+            Shoe {
+                size: 13,
+                style: String::from("sandal"),
+            },
+            Shoe {
+                size: 10,
+                style: String::from("boot"),
+            },
+        ];
+
+        let in_my_size = shoes_in_my_size(shoes, 10);
+
+        assert_eq!(
+            in_my_size,
+            vec![
+                Shoe {
+                    size: 10,
+                    style: String::from("sneaker")
+                },
+                Shoe {
+                    size: 10,
+                    style: String::from("boot")
+                },
+            ]
+        );
+    }
+}
+
+fn main() {}
+```
+
+*shoes_in_my_size* takes ownership of a vector of shoes and returns a vector containing shoes with the specified size.
+
+*into_iter()* creates an iterator that takes ownership of the vector. *filter()* adapts that iterator in a new iterator that only contains shoes, where the closure returned true.
+
+Next we create a struct and implement the Iterator trait for it.
+
+```rust
+struct Counter {
+    count: u32,
+}
+
+impl Counter {
+    fn new() -> Counter {
+        Counter { count: 0 }
+    }
+}
+
+impl Iterator for Counter {
+    type Item = u32;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.count < 5{
+            self.count += 1;
+            Some(self.count)
+        }else {
+            None
+        }
+    }
+}
+
+fn main() {
+    let mut counter = Counter::new();
+    let c1 = counter.next(); // Some(1)
+    
+    let sum: u32 = Counter::new()
+    	.zip(Counter::new().skip(1)) // create pairs like this (0, 1), (1, 2), (2, 3)
+    	.map(|(a, b)| a * b) // multiple pair values
+    	.filter(|x| x % 3 == 0) // filter out values that are not div. by 3
+    	.sum(); // add all of them together: 3 + 6 + 9 = 18
+}
+```
+
+
+
+### Improving the grep program
+
+The search function can be shortened significantly with the use of iterators.
+
+```rust
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    contents
+        .lines()
+        .filter(|line| line.contains(query))
+        .collect()
+}
+```
+
+Iterators are also slightly faster or at least pretty much the same performance wise.
